@@ -1,28 +1,52 @@
+const port = 8080,
+  host = 'localhost';
+// host = 'ec2-13-236-152-60.ap-southeast-2.compute.amazonaws.com';
+
 const Tool = {
   pencil: 0,
   eraser: 1,
   bucket: 2,
 }
 
-// shout outs to JS for not having enums lol
+const colorArray = [
+  "white",
+  "green",
+  "indigo",
+  "blue",
+  "red",
+  "gold",
+  "orange",
+  "black",
+  "gray",
+]
+const Colors = colorArray.reduce((acc, cur, idx) => { acc[cur] = idx; return acc }, {});
+
+// shout outs to JS for not having enums
 const actionArray = [
-  "playerConnected",
-  "playerDisconnected",
-  "playerList",
-  "chooseUsername",
+  "batch",
 
   "notEnoughPlayers",
   "drawerDisconnected",
+  "failedServerConnection",
+
+  "chooseUsername",
+  "findServer",
+  "serverConnected",
+  "serverDisconnected",
+
+  "playerConnected",
+  "playerDisconnected",
+  "playerList",
 
   "wordList",
   "wordChoice",
 
-  "startGame",
-  "endGame",
+  "startMatch",
+  "endMatch",
   "startRound",
   "endRound",
-  "startSingleGame",
-  "endSingleGame",
+  "startGame",
+  "endGame",
   "startGuessing",
 
   "isDrawer",
@@ -34,34 +58,23 @@ const actionArray = [
   "tool",
   "strokeColor",
   "strokeWidth",
-  "drawPencilStart",
-  "drawPencilContinue",
-  "drawPencilStop",
-  "outOfCanvas",
+  "clearCanvas",
+  "undo",
+  "lastCoords",
+  "mouseDown",
+  "mouseMove",
+  "mouseUp",
 ];
-const actionTypes = actionArray.reduce((acc, cur, idx) => { acc[cur] = idx; return acc }, {});
+const ActionTypes = actionArray.reduce((acc, cur, idx) => { acc[cur] = idx; return acc }, {});
 
 const serverFlag = 1 << 7;
-function setServerFlag(action) {
-  return action |= serverFlag;
-}
-function unsetServerFlag(action) {
-  return action &= ~serverFlag;
-}
-function isCanvasAction(action) {
-  return action >= actionTypes.tool;
-}
+const setServerFlag = actionType => actionType |= serverFlag;
+const unsetServerFlag = actionType => actionType &= ~serverFlag;
+const isMouseAction = action => action.type >= ActionTypes.tool;
 // defines actions that only change the canvas i.e. drawing a line
-function isDrawingAction(action) {
-  return action >= actionTypes.drawPencilStart;
-}
-function isLocalAction(action) {
-  return !(action & serverFlag);
-}
-function isErrorAction(action) {
-  return action.type >= actionTypes.notEnoughPlayers &&
-    action.type <= actionTypes.drawerDisconnected;
-}
+const isDrawingAction = action => action.type >= ActionTypes.mouseDown;
+const isLocalAction = action => !(action.type & serverFlag);
+const isErrorAction = action => (action.type >= ActionTypes.notEnoughPlayers && action.type <= ActionTypes.drawerDisconnected);
 
 function logAction(action) {
   if (typeof action.type === "string" && action.type.startsWith("@@")) return;
@@ -71,14 +84,37 @@ function logAction(action) {
   console.log({ ...action, type });
 }
 
+const initialState = {
+  messages: [],
+  mouseAction: null,
+  playerList: [],
+  tool: 0,
+  strokeWidth: 4,
+  strokeColor: "black",
+  haveGuessed: false,
+  isDrawer: true,
+  wordList: [],
+  currentlyChoosingWord: false,
+  username: "hey",
+  clearCanvas: false,
+  undo: false,
+};
+
+const uri = `http://${host}:${port}`;
 module.exports = {
+  port,
+  host,
   Tool,
-  actionTypes,
+  ActionTypes,
   setServerFlag,
   unsetServerFlag,
-  isCanvasAction,
+  isMouseAction,
   isDrawingAction,
   isLocalAction,
   isErrorAction,
   logAction,
+  initialState,
+  uri,
+  colorArray,
+  Colors,
 };

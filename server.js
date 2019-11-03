@@ -89,12 +89,11 @@ module.exports = class GameServer {
 
 		this.playerOrder.push(socket);
 		console.log(this.getPlayerScores());
-		socket.emitAction({ type: this.util.actionTypes.playerList, playerList: this.getPlayerScores() });
-		socket.broadcastAction({ type: this.util.actionTypes.playerConnected, player: { id: socket.id, username: socket.username } });
+		socket.emitAction({ type: this.util.ActionTypes.playerList, playerList: this.getPlayerScores() });
+		socket.broadcastAction({ type: this.util.ActionTypes.playerConnected, player: { id: socket.id, username: socket.username } });
 
-		for (const action of this.canvasActionList) {
-			socket.emitAction(action);
-		}
+		if (this.canvasActionList.length > 0)
+			socket.emitAction({ type: this.util.ActionTypes.batch, actions: this.canvasActionList });
 
 		if (this.playerOrder.length > 1 && !this.gameInProgress) this.startMatch();
 
@@ -118,7 +117,7 @@ module.exports = class GameServer {
 	}
 
 	preRound() {
-		this.io.emitAction({ type: this.util.actionTypes.startRound });
+		this.io.emitAction({ type: this.util.ActionTypes.startRound });
 		console.log('Pre-round');
 	}
 	async round() {
@@ -129,7 +128,7 @@ module.exports = class GameServer {
 				await this.game(drawerSocket);
 			} catch (e) {
 				if (e.message === "drawerDisconnected") {
-					this.io.emitAction({ type: this.util.actionTypes.drawerDisconnected });
+					this.io.emitAction({ type: this.util.ActionTypes.drawerDisconnected });
 					console.log("drawer disconnected");
 				} else
 					throw e;
@@ -137,12 +136,12 @@ module.exports = class GameServer {
 		}
 	}
 	postRound() {
-		this.io.emitAction({ type: this.util.actionTypes.endRound, playerScores: getPlayerScores() });
+		this.io.emitAction({ type: this.util.ActionTypes.endRound, playerScores: getPlayerScores() });
 		console.log('Post-round');
 	}
 
 	preGame() {
-		this.io.emitAction({ type: this.util.actionTypes.startSingleGame });
+		this.io.emitAction({ type: this.util.ActionTypes.startGame });
 		console.log("Pre-game");
 	}
 	/*
@@ -171,10 +170,10 @@ module.exports = class GameServer {
 
 			const setupGuesserSocket = socket => {
 				socket.correctGuess = false;
-				const removeGuessListener = socket.onAction(this.util.actionTypes.message, messageAction => {
+				const removeGuessListener = socket.onAction(this.util.ActionTypes.message, messageAction => {
 					if (!socket.correctGuess && wordChoice && wordChoice === messageAction.message) {
 						const correctGuessAction = {
-							type: this.util.actionTypes.correctGuess,
+							type: this.util.ActionTypes.correctGuess,
 							data: socket.id,
 						};
 						this.util.logAction(correctGuessAction);
@@ -200,7 +199,7 @@ module.exports = class GameServer {
 
 				const removeDisconnectListener = socket.onDisconnect(() => {
 					correctGuessers = correctGuessers.filter(correctGuesser => correctGuesser != socket);
-					socket.broadcastAction({ type: this.util.actionTypes.playerDisconnected, id: socket.id });
+					socket.broadcastAction({ type: this.util.ActionTypes.playerDisconnected, id: socket.id });
 					if (this.playerOrder.length < 2) res(2);
 					console.log("Socket disconnected: " + socket.id);
 				});
@@ -223,13 +222,14 @@ module.exports = class GameServer {
 			/* * * * * * * * * * */
 			// start game
 
-			drawerSocket.emitAction({ type: this.util.actionTypes.isDrawer });
-			drawerSocket.broadcastAction({ type: this.util.actionTypes.isGuesser });
+			console.log(drawerSocket.id);
+			drawerSocket.emitAction({ type: this.util.ActionTypes.isDrawer });
+			drawerSocket.broadcastAction({ type: this.util.ActionTypes.isGuesser });
 
 			/* Get word choice */
 			const wordList = this.getWordList();
-			const randomWord = wordList[randomIntFromInterval(0, wordList.length)];
-			drawerSocket.emitAction({ type: this.util.actionTypes.wordList, wordList });
+			const randomWord = wordList[randomIntFromInterval(0, wordList.length - 1)];
+			drawerSocket.emitAction({ type: this.util.ActionTypes.wordList, wordList });
 			wordChoice = await new Promise(res => {
 				let removeWordChoiceListener;
 				timeout = setTimeout(() => {
@@ -237,11 +237,11 @@ module.exports = class GameServer {
 
 					removeWordChoiceListener();
 
-					drawerSocket.emitAction({ type: this.util.actionTypes.wordChoice, word: randomWord });
+					drawerSocket.emitAction({ type: this.util.ActionTypes.wordChoice, word: randomWord });
 
 					res(randomWord);
 				}, wordChoiceTimeout);
-				removeWordChoiceListener = drawerSocket.onAction(this.util.actionTypes.wordChoice, action => {
+				removeWordChoiceListener = drawerSocket.onAction(this.util.ActionTypes.wordChoice, action => {
 					console.log(`word chosen as: ${action.word}`);
 
 					removeWordChoiceListener();
@@ -252,7 +252,7 @@ module.exports = class GameServer {
 			});
 			/* * * * * * * * */
 
-			this.io.emitAction({ type: this.util.actionTypes.startGuessing });
+			this.io.emitAction({ type: this.util.ActionTypes.startGuessing });
 
 			timeout = setTimeout(() => {
 				cleanupListeners();
@@ -270,7 +270,7 @@ module.exports = class GameServer {
 		}
 	}
 	postGame() {
-		this.io.emitAction({ type: this.util.actionTypes.endSingleGame, playerScores: getPlayerScores() });
+		this.io.emitAction({ type: this.util.ActionTypes.endGame, playerScores: getPlayerScores() });
 		console.log("Post-game");
 	}
 
@@ -283,7 +283,7 @@ module.exports = class GameServer {
 		this.canvasActionList = [];
 		this.messageList = [];
 
-		this.io.emitAction({ type: this.util.actionTypes.notEnoughPlayers });
+		this.io.emitAction({ type: this.util.ActionTypes.notEnoughPlayers });
 
 		for (const socket of this.playerOrder) {
 			this.freshSetupSocket(socket);
